@@ -17,7 +17,7 @@
 <div id="sprite-container"></div>
 
 <script>
-const SD_BACKEND_URL = "enchanting-enchantment-production-3e6b.up.railway.app"; // ton backend en ligne
+const SD_BACKEND_URL = "https://enchanting-enchantment-production-3e6b.up.railway.app";
 
 async function pngBlobToHexGrid(blob, targetSize=32) {
   return new Promise((resolve) => {
@@ -79,7 +79,7 @@ async function generateSprite(prompt, size=32) {
 function renderGrid(template, container) {
   const size = template.grid.length;
   const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = size*10; // zoom x10
+  canvas.width = canvas.height = size*10;
   const ctx = canvas.getContext("2d");
   for (let y=0; y<size; y++) {
     for (let x=0; x<size; x++) {
