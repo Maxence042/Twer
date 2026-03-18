@@ -6,24 +6,28 @@ from io import BytesIO
 from PIL import Image
 
 app = Flask(__name__)
-# ⚡ Autorise toutes les origines
+# ⚡ Autorise toutes les origines et toutes les méthodes
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# ⚡ Config client Hugging Face
+# ⚡ Config Hugging Face
 client = InferenceClient(
-    provider="fal-ai",  # ou "hf-inference" si disponible pour ton modèle
+    provider="fal-ai",  # ou hf-inference
     api_key=os.environ.get("HF_TOKEN")
 )
 
-@app.route("/health", methods=["GET"])
+@app.route("/health", methods=["GET", "OPTIONS"])
 def health():
     return jsonify({"status": "ok"})
 
-@app.route("/generate", methods=["POST"])
+@app.route("/generate", methods=["POST", "OPTIONS"])
 def generate():
+    # Gestion pré-vol CORS (OPTIONS)
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
     data = request.json
     prompt = data.get("prompt", "")
-    size = data.get("size", "32x32")  # format largeurxhauteur
+    size = data.get("size", "32x32")
     width, height = map(int, size.split("x"))
 
     # Génération image
@@ -34,7 +38,6 @@ def generate():
         height=height
     )
 
-    # Retour PNG
     img_io = BytesIO()
     image.save(img_io, "PNG")
     img_io.seek(0)
