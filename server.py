@@ -1,62 +1,52 @@
-from flask import Flask, request, send_file, jsonify
-from flask_cors import CORS
-from huggingface_hub import InferenceClient
+# server.py
 import os
+from flask import Flask, request, send_file
+from flask_cors import CORS
 from io import BytesIO
 from PIL import Image
+import replicate
+import requests
 
-# ⚡ Création de l'app Flask
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app)  # autorise toutes les origines
 
-# ⚡ Vérifie et récupère le token Hugging Face
-HF_TOKEN = os.environ.get("HF_TOKEN")
-if not HF_TOKEN:
-    raise ValueError("⚠️ HF_TOKEN non défini dans les variables d'environnement !")
-print("HF_TOKEN OK:", HF_TOKEN[:8], "...")  # juste 8 premiers caractères pour debug
-
-# ⚡ Client SDXL via FAL
-client = InferenceClient(
-    provider="fal-ai",
-    api_key=HF_TOKEN
-)
+# Token Replicate depuis variable d'environnement
+os.environ["REPLICATE_API_TOKEN"] = os.environ.get("REPLICATE_API_TOKEN", "")
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.json or {}
+    data = request.json
     prompt = data.get("prompt", "")
-    size = data.get("size", "256x256")
-    
-    try:
-        width, height = map(int, size.split("x"))
-    except Exception:
-        width = height = 256  # fallback si le format est incorrect
-
-    # ⚡ Force la taille minimale pour SDXL
-    if width < 256 or height < 256:
-        width = height = 256
+    size = data.get("size", "64x64")  # format : "64x64", "128x128"
+    width, height = map(int, size.split("x"))
 
     try:
-        # ⚡ Génération de l'image
-        image = client.text_to_image(
-            prompt,
-            model="stabilityai/stable-diffusion-xl-base-1.0",
+        # Appel Replicate
+        model = replicate.models.get("stability-ai/stable-diffusion-xl")
+        output = model.predict(
+            prompt=prompt,
             width=width,
-            height=height
+            height=height,
+            num_outputs=1
         )
-    except Exception as e:
-        # Retourne l'erreur exacte au frontend
-        return jsonify({"error": str(e)}), 500
 
-    # ⚡ Conversion en PNG pour le frontend
-    img_io = BytesIO()
-    image.save(img_io, "PNG")
-    img_io.seek(0)
-    return send_file(img_io, mimetype="image/png")
+        # Replicate retourne une URL de l'image
+        image_url = output[0]
+        resp = requests.get(image_url)
+        img = Image.open(BytesIO(resp.content))
+
+        # Conversion PNG → renvoi au frontend
+        img_io = BytesIO()
+        img.save(img_io, "PNG")
+        img_io.seek(0)
+        return send_file(img_io, mimetype="image/png")
+
+    except Exception as e:
+        return {"error": str(e)}, 500
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
