@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>PixelTower SDXL</title>
+<style>
+  body { font-family: sans-serif; margin: 20px; }
+  canvas { image-rendering: pixelated; border: 1px solid #333; }
+  #sprite-container { margin-top: 20px; }
+</style>
+</head>
+<body>
+<h1>PixelTower SDXL</h1>
+
+<input type="text" id="prompt" placeholder="Entrez un prompt pixel art" size="50">
+<button id="generateBtn">Générer Sprite</button>
+<div id="sprite-container"></div>
+
+<script>
+const SD_BACKEND_URL = "https://mon-backend.up.railway.app"; // ton backend en ligne
+
+async function pngBlobToHexGrid(blob, targetSize=32) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = targetSize;
+      const ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, targetSize, targetSize);
+      const data = ctx.getImageData(0,0,targetSize,targetSize).data;
+      const grid = [];
+      for (let y=0; y<targetSize; y++) {
+        const row = [];
+        for (let x=0; x<targetSize; x++) {
+          const idx = (y*targetSize + x)*4;
+          const r = data[idx], g=data[idx+1], b=data[idx+2], a=data[idx+3];
+          row.push(a < 30 ? null : `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`);
+        }
+        grid.push(row);
+      }
+      resolve(grid);
+    };
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+function rawGridToTemplate(grid) {
+  return {
+    directColor: true,
+    grid: grid,
+    frame2: null,
+    palette: extractPaletteFromGrid(grid, 8),
+    name: "SDXL Sprite",
+    source: "sd"
+  };
+}
+
+function extractPaletteFromGrid(grid, n=8) {
+  const freq = {};
+  grid.flat().forEach(c => { if(c) freq[c] = (freq[c]||0)+1 });
+  return Object.entries(freq)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,n)
+    .map(e=>e[0]);
+}
+
+async function generateSprite(prompt, size=32) {
+  const res = await fetch(`${SD_BACKEND_URL}/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, size: `${size}x${size}` })
+  });
+  const blob = await res.blob();
+  const grid = await pngBlobToHexGrid(blob, size);
+  return rawGridToTemplate(grid);
+}
+
+function renderGrid(template, container) {
+  const size = template.grid.length;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size*10; // zoom x10
+  const ctx = canvas.getContext("2d");
+  for (let y=0; y<size; y++) {
+    for (let x=0; x<size; x++) {
+      const c = template.grid[y][x] || "#000000";
+      ctx.fillStyle = c;
+      ctx.fillRect(x*10, y*10, 10, 10);
+    }
+  }
+  container.innerHTML = "";
+  container.appendChild(canvas);
+}
+
+document.getElementById("generateBtn").addEventListener("click", async () => {
+  const prompt = document.getElementById("prompt").value.trim();
+  if(!prompt) return alert("Entrez un prompt !");
+  const container = document.getElementById("sprite-container");
+  container.innerHTML = "Génération en cours…";
+  try {
+    const template = await generateSprite(prompt, 32);
+    renderGrid(template, container);
+  } catch(e) {
+    container.innerHTML = "Erreur : " + e.message;
+    console.error(e);
+  }
+});
+</script>
+</body>
+</html>
