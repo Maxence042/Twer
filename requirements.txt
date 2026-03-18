@@ -1,5 +1,5 @@
-flask
-flask-cors
-huggingface_hub
-pillow
-python-dotenv
+Flask==2.3.6
+flask-cors==3.1.1
+replicate==0.11.0
+pillow==10.4.0
+requests==2.32.0
