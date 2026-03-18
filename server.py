@@ -1,5 +1,8 @@
 from flask import Flask, request, send_file
 from flask_cors import CORS
+
+# Autorise toutes les origines, toutes les routes, et toutes les méthodes
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 from huggingface_hub import InferenceClient
 import os
 from io import BytesIO
