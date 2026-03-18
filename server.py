@@ -5,17 +5,17 @@ import os
 from io import BytesIO
 from PIL import Image
 
-# ⚡ Crée l'application Flask
+# ⚡ Création de l'app Flask
 app = Flask(__name__)
-
-# ⚡ Autorise toutes les origines, toutes les routes et méthodes
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ⚡ Récupère le token Hugging Face depuis les variables d'environnement
+# ⚡ Vérifie et récupère le token Hugging Face
 HF_TOKEN = os.environ.get("HF_TOKEN")
 if not HF_TOKEN:
     raise ValueError("⚠️ HF_TOKEN non défini dans les variables d'environnement !")
+print("HF_TOKEN OK:", HF_TOKEN[:8], "...")  # juste 8 premiers caractères pour debug
 
+# ⚡ Client SDXL via FAL
 client = InferenceClient(
     provider="fal-ai",
     api_key=HF_TOKEN
@@ -25,19 +25,19 @@ client = InferenceClient(
 def generate():
     data = request.json or {}
     prompt = data.get("prompt", "")
-    size = data.get("size", "128x128")
+    size = data.get("size", "256x256")
     
     try:
         width, height = map(int, size.split("x"))
     except Exception:
-        width = height = 128  # fallback si le format est incorrect
+        width = height = 256  # fallback si le format est incorrect
 
-    # ⚠️ Force la taille minimale pour SDXL
-    if width < 128 or height < 128:
-        width = height = 128
+    # ⚡ Force la taille minimale pour SDXL
+    if width < 256 or height < 256:
+        width = height = 256
 
-    # ⚡ Essayons de générer l'image
     try:
+        # ⚡ Génération de l'image
         image = client.text_to_image(
             prompt,
             model="stabilityai/stable-diffusion-xl-base-1.0",
@@ -45,9 +45,10 @@ def generate():
             height=height
         )
     except Exception as e:
+        # Retourne l'erreur exacte au frontend
         return jsonify({"error": str(e)}), 500
 
-    # Conversion PNG → envoi
+    # ⚡ Conversion en PNG pour le frontend
     img_io = BytesIO()
     image.save(img_io, "PNG")
     img_io.seek(0)
