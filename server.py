@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from huggingface_hub import InferenceClient
 import os
@@ -11,26 +11,38 @@ app = Flask(__name__)
 # ⚡ Autorise toutes les origines, toutes les routes et méthodes
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ⚡ Token Hugging Face depuis variable d'environnement
+# ⚡ Récupère le token Hugging Face depuis les variables d'environnement
+HF_TOKEN = os.environ.get("HF_TOKEN")
+if not HF_TOKEN:
+    raise ValueError("⚠️ HF_TOKEN non défini dans les variables d'environnement !")
+
 client = InferenceClient(
     provider="fal-ai",
-    api_key=os.environ.get("HF_TOKEN")
+    api_key=HF_TOKEN
 )
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    data = request.json
+    data = request.json or {}
     prompt = data.get("prompt", "")
-    size = data.get("size", "32x32")
+    size = data.get("size", "128x128")  # taille par défaut
     width, height = map(int, size.split("x"))
 
-    # Génération image SDXL via Hugging Face
-    image = client.text_to_image(
-        prompt,
-        model="stabilityai/stable-diffusion-xl-base-1.0",
-        width=width,
-        height=height
-    )
+    # ⚠️ Force la taille minimale pour SDXL
+    if width < 128 or height < 128:
+        width = height = 128
+
+    try:
+        # Génération image SDXL via Hugging Face
+        image = client.text_to_image(
+            prompt,
+            model="stabilityai/stable-diffusion-xl-base-1.0",
+            width=width,
+            height=height
+        )
+    except Exception as e:
+        # Retourne l'erreur au frontend
+        return jsonify({"error": str(e)}), 500
 
     # Conversion PNG → envoi
     img_io = BytesIO()
@@ -40,7 +52,7 @@ def generate():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return {"status": "ok"}
+    return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
