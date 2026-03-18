@@ -25,15 +25,19 @@ client = InferenceClient(
 def generate():
     data = request.json or {}
     prompt = data.get("prompt", "")
-    size = data.get("size", "128x128")  # taille par défaut
-    width, height = map(int, size.split("x"))
+    size = data.get("size", "128x128")
+    
+    try:
+        width, height = map(int, size.split("x"))
+    except Exception:
+        width = height = 128  # fallback si le format est incorrect
 
     # ⚠️ Force la taille minimale pour SDXL
     if width < 128 or height < 128:
         width = height = 128
 
+    # ⚡ Essayons de générer l'image
     try:
-        # Génération image SDXL via Hugging Face
         image = client.text_to_image(
             prompt,
             model="stabilityai/stable-diffusion-xl-base-1.0",
@@ -41,7 +45,6 @@ def generate():
             height=height
         )
     except Exception as e:
-        # Retourne l'erreur au frontend
         return jsonify({"error": str(e)}), 500
 
     # Conversion PNG → envoi
