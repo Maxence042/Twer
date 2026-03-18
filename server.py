@@ -1,33 +1,44 @@
 from flask import Flask, request, send_file
+from flask_cors import CORS
 from huggingface_hub import InferenceClient
 import os
 from io import BytesIO
 
 app = Flask(__name__)
 
-# 🔑 Mets ton token ici temporairement (on sécurisera après)
-HF_TOKEN = "hf_XXXXXXXXXXXX"
+# ⚡ CORS activé pour toutes les origines (important pour le cloud)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
+# ⚡ Utilise ton token Hugging Face
 client = InferenceClient(
     provider="fal-ai",
-    api_key=HF_TOKEN,
+    api_key=os.environ.get("HF_TOKEN")
 )
 
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.json
     prompt = data.get("prompt", "")
+    size = data.get("size", "64x64")
+    seed = data.get("seed", None)
 
+    # Génération image SDXL
     image = client.text_to_image(
         prompt,
         model="stabilityai/stable-diffusion-xl-base-1.0",
     )
 
+    # Conversion PNG → envoi
     img_io = BytesIO()
     image.save(img_io, "PNG")
     img_io.seek(0)
-
     return send_file(img_io, mimetype="image/png")
 
+@app.route("/health", methods=["GET"])
+def health():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
-    app.run(port=3000)
+    port = int(os.environ.get("PORT", 3000))
+    # ⚡ host=0.0.0.0 pour rendre accessible depuis le cloud
+    app.run(host="0.0.0.0", port=port)
