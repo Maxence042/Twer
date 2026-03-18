@@ -1,17 +1,17 @@
 from flask import Flask, request, send_file
 from flask_cors import CORS
-
-# Autorise toutes les origines, toutes les routes, et toutes les méthodes
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 from huggingface_hub import InferenceClient
 import os
 from io import BytesIO
 from PIL import Image
 
+# ⚡ Crée l'application Flask
 app = Flask(__name__)
-CORS(app)  # permet les requêtes cross-origin depuis ton frontend
 
-# Token Hugging Face depuis variable d'environnement
+# ⚡ Autorise toutes les origines, toutes les routes et méthodes
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
+# ⚡ Token Hugging Face depuis variable d'environnement
 client = InferenceClient(
     provider="fal-ai",
     api_key=os.environ.get("HF_TOKEN")
@@ -21,10 +21,10 @@ client = InferenceClient(
 def generate():
     data = request.json
     prompt = data.get("prompt", "")
-    size = data.get("size", "32x32")  # "32x32", "64x64" etc
+    size = data.get("size", "32x32")
     width, height = map(int, size.split("x"))
 
-    # Génération image SDXL
+    # Génération image SDXL via Hugging Face
     image = client.text_to_image(
         prompt,
         model="stabilityai/stable-diffusion-xl-base-1.0",
