@@ -2,72 +2,74 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Replicate Image Generator</title>
+  <title>Générateur d'images</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: sans-serif;
       padding: 20px;
-      background-color: #f0f0f0;
-      text-align: center;
     }
     input, button {
       padding: 10px;
       font-size: 16px;
-      margin: 5px;
+      margin-right: 10px;
     }
     img {
+      display: block;
       margin-top: 20px;
-      max-width: 80%;
-      border: 2px solid #ccc;
-      border-radius: 8px;
+      max-width: 100%;
+      border: 1px solid #ccc;
     }
   </style>
 </head>
 <body>
-  <h1>Replicate Image Generator</h1>
-  
-  <input type="text" id="prompt" placeholder="Écris ton prompt ici..." size="50">
-  <select id="size">
-    <option value="256x256">256x256</option>
-    <option value="512x512" selected>512x512</option>
-    <option value="768x768">768x768</option>
+  <h1>Générateur d'images</h1>
+
+  <input type="text" id="promptInput" placeholder="Ex: pixel art dragon" size="30"/>
+  <select id="sizeSelect">
+    <option value="32x32">32x32</option>
+    <option value="64x64">64x64</option>
+    <option value="128x128">128x128</option>
+    <option value="256x256" selected>256x256</option>
   </select>
   <button id="generateBtn">Générer</button>
 
-  <div id="result"></div>
+  <img id="resultImg" alt="Image générée" />
 
   <script>
-    const button = document.getElementById("generateBtn");
-    const promptInput = document.getElementById("prompt");
-    const sizeInput = document.getElementById("size");
-    const resultDiv = document.getElementById("result");
+    const btn = document.getElementById("generateBtn");
+    const promptInput = document.getElementById("promptInput");
+    const sizeSelect = document.getElementById("sizeSelect");
+    const resultImg = document.getElementById("resultImg");
 
-    button.addEventListener("click", async () => {
+    btn.addEventListener("click", async () => {
       const prompt = promptInput.value.trim();
-      const size = sizeInput.value;
+      const size = sizeSelect.value;
 
       if (!prompt) {
-        alert("Écris un prompt avant de générer !");
+        alert("Veuillez entrer un prompt !");
         return;
       }
 
-      resultDiv.innerHTML = "<p>Génération en cours…</p>";
+      resultImg.src = ""; // reset image
 
       try {
-        const res = await fetch("https://twer-production.up.railway.app/generate", {
+        const response = await fetch("https://twer-production.up.railway.app/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt, size })
         });
 
-        if (!res.ok) throw new Error("Erreur lors de la génération : " + res.status);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Erreur serveur: ${response.status} - ${text}`);
+        }
 
-        const data = await res.json();
-        resultDiv.innerHTML = `<img src="${data.image_url}" alt="Image générée">`;
+        const blob = await response.blob();
+        resultImg.src = URL.createObjectURL(blob);
 
       } catch (err) {
         console.error(err);
-        resultDiv.innerHTML = `<p style="color:red">Erreur : ${err.message}</p>`;
+        alert("Erreur lors de la génération : " + err.message);
       }
     });
   </script>
