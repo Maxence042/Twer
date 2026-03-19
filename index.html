@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Replicate Image Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f0f0f0;
+      text-align: center;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+    }
+    img {
+      margin-top: 20px;
+      max-width: 80%;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Replicate Image Generator</h1>
+  
+  <input type="text" id="prompt" placeholder="Écris ton prompt ici..." size="50">
+  <select id="size">
+    <option value="256x256">256x256</option>
+    <option value="512x512" selected>512x512</option>
+    <option value="768x768">768x768</option>
+  </select>
+  <button id="generateBtn">Générer</button>
+
+  <div id="result"></div>
+
+  <script>
+    const button = document.getElementById("generateBtn");
+    const promptInput = document.getElementById("prompt");
+    const sizeInput = document.getElementById("size");
+    const resultDiv = document.getElementById("result");
+
+    button.addEventListener("click", async () => {
+      const prompt = promptInput.value.trim();
+      const size = sizeInput.value;
+
+      if (!prompt) {
+        alert("Écris un prompt avant de générer !");
+        return;
+      }
+
+      resultDiv.innerHTML = "<p>Génération en cours…</p>";
+
+      try {
+        const res = await fetch("https://twer-production.up.railway.app/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, size })
+        });
+
+        if (!res.ok) throw new Error("Erreur lors de la génération : " + res.status);
+
+        const data = await res.json();
+        resultDiv.innerHTML = `<img src="${data.image_url}" alt="Image générée">`;
+
+      } catch (err) {
+        console.error(err);
+        resultDiv.innerHTML = `<p style="color:red">Erreur : ${err.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
