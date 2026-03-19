@@ -1,63 +1,38 @@
-from flask import Flask, request, send_file, jsonify
-from flask_cors import CORS
-from huggingface_hub import InferenceClient
 import os
-from io import BytesIO
-from PIL import Image
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import replicate
 
 app = Flask(__name__)
-# ⚡ Autorise toutes les origines pour fetch depuis n'importe quel site
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)  # Autorise toutes les origines pour fetch depuis ton frontend
 
-# Hugging Face token depuis variable d'environnement
-HF_TOKEN = os.environ.get("HF_TOKEN")
-if not HF_TOKEN:
-    raise ValueError("HF_TOKEN n'est pas défini dans les variables d'environnement !")
+# Récupère le token Replicate depuis les variables d'environnement
+REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
+if not REPLICATE_API_TOKEN:
+    raise ValueError("REPLICATE_API_TOKEN n'est pas défini dans les variables d'environnement !")
 
-client = InferenceClient(
-    provider="hf-inference",
-    api_key=HF_TOKEN
-)
+client = replicate.Client(api_token=REPLICATE_API_TOKEN)
 
+# Route pour générer l'image
 @app.route("/generate", methods=["POST"])
 def generate():
     data = request.json
     prompt = data.get("prompt", "")
-    size = data.get("size", "32x32")
+    size = data.get("size", "512x512")  # Taille par défaut
     
-    try:
-        width, height = map(int, size.split("x"))
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Taille invalide : {size}"}), 400
+    # On prend un modèle Stable Diffusion disponible sur Replicate
+    model = client.models.get("stability-ai/stable-diffusion")
+    
+    # Predict renvoie une URL de l'image générée
+    output = model.predict(prompt=prompt, width=int(size.split("x")[0]), height=int(size.split("x")[1]))
+    
+    return jsonify({"image_url": output[0]})
 
-    try:
-        # Génération image
-        image = client.text_to_image(
-            prompt,
-            model="stabilityai/stable-diffusion-xl-base-1.0",
-            width=width,
-            height=height
-        )
-    except Exception as e:
-        # Log de l'erreur dans Railway
-        print("Erreur génération image :", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-    try:
-        # Conversion PNG → envoi
-        img_io = BytesIO()
-        image.save(img_io, "PNG")
-        img_io.seek(0)
-        return send_file(img_io, mimetype="image/png")
-    except Exception as e:
-        print("Erreur envoi image :", e)
-        return jsonify({"status": "error", "message": "Impossible d'envoyer l'image"}), 500
-
+# Route health
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
-    print(f"Serveur démarré sur le port {port}")
     app.run(host="0.0.0.0", port=port)
