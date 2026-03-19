@@ -1,15 +1,16 @@
-import os
-import replicate
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
-from io import BytesIO
+import os
 import requests
+from io import BytesIO
+
+import replicate
 
 app = Flask(__name__)
 # ⚡ Autorise toutes les origines pour fetch depuis n'importe quel site
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# 🔑 Ton token Replicate depuis les variables d'environnement
+# Récupération de la variable d'environnement
 REPLICATE_API_TOKEN = os.environ.get("REPLICATE_API_TOKEN")
 if not REPLICATE_API_TOKEN:
     raise ValueError("REPLICATE_API_TOKEN n'est pas défini !")
@@ -20,21 +21,34 @@ client = replicate.Client(api_token=REPLICATE_API_TOKEN)
 def generate():
     try:
         data = request.json
-        prompt = data.get("prompt", "pixel art dragon")
+        prompt = data.get("prompt", "")
+        if not prompt:
+            return jsonify({"status": "error", "message": "Aucun prompt fourni"}), 400
 
-        # Appel du modèle prunaai/z-image-turbo
-        output_urls = client.models.get("prunaai/z-image-turbo").predict(
-            prompt=prompt
-        )
+        # Appel Replicate
+        print("Prompt reçu :", prompt)
+        model = client.models.get("prunaai/z-image-turbo")  # Modèle Replicate
+        output_urls = model.predict(prompt=prompt)
 
-        # Télécharge la première image générée
-        img_data = requests.get(output_urls[0]).content
-        img_io = BytesIO(img_data)
-        img_io.seek(0)
+        print("Replicate output URLs:", output_urls)
 
+        if not output_urls:
+            return jsonify({"status": "error", "message": "Aucune URL générée par Replicate"}), 500
+
+        # Téléchargement de l'image
+        img_response = requests.get(output_urls[0])
+        if img_response.status_code != 200:
+            return jsonify({
+                "status": "error",
+                "message": f"Impossible de récupérer l'image ({img_response.status_code})"
+            }), 500
+
+        img_io = BytesIO(img_response.content)
         return send_file(img_io, mimetype="image/png")
-    
+
     except Exception as e:
+        # DEBUG : retourne l'erreur exacte dans JSON
+        print("ERREUR :", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/health", methods=["GET"])
